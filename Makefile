@@ -12,13 +12,6 @@ client: client.c
 	${CC} -c ${CFLAGS} $@.c
 	${CC} -o $@ $@.o ${LDFLAGS}
 
-#server-1: server-1.c
-#	${CC} -c ${CFLAGS} $@.c
-#	${CC} -o $@ $@.o ${LDFLAGS}
-
-#client-1: client-1.c
-#	${CC} -c ${CFLAGS} $@.c
-#	${CC} -o $@ $@.o ${LDFLAGS}
 
 clean:
 	@-rm -f client

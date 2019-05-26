@@ -37,10 +37,10 @@ int main(int argc, char *argv[])
 	u_short port = 80;
 	char *hostname = "revoked-demo.pca.dfn.de";
 	int sd;
-	printf("2\n");
+
 	if (argc != 1)
 		usage();
-	printf("3\n");
+
 	tls_init();
 
     tls = tls_client();
@@ -52,16 +52,7 @@ int main(int argc, char *argv[])
     // a ako nemam:
     tls_config_insecure_noverifycert(config);
 
-    // Ako provjeravam hostname, tj. CN u certifikatu:
-    // u tls_connect_socket se upise CN: "MM server"
-    // a ako ne zelim provjeru:
-    // tls_config_insecure_noverifyname(config);
-
     tls_configure(tls, config);
-
-	/*
-	 * first set up "server_sa" to be the location of the server
-	 */
 	 
 	tls_config_ocsp_require_stapling(config);
 	 
@@ -73,42 +64,25 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "Invalid IP address %s\n", argv[1]);
 		usage();
 	}
-	printf("4\n");
-	/* ok now get a socket. we don't care where... */
+
+
 	if ((sd=socket(AF_INET,SOCK_STREAM,0)) == -1)
 		err(1, "socket failed\n");
-	printf("4.1\n");
+
 	/* connect the socket to the server described in "server_sa" */
 	//if (connect(sd, (struct sockaddr *)&server_sa, sizeof(server_sa))== -1){
 		//printf("4.1.1\n");
 		//err(1, "connect failed\n");
 	//}
-	printf("4.2\n");
+
 	if(tls_connect(tls, hostname, "443") < 0) {
         errx(1, "tls_connect error %s\n", tls_error(tls));
     }
-	printf("5\n");
 
 
 
-	r = -1;
-	rc = 0;
-	maxread = sizeof(buffer) - 1; /* leave room for a 0 byte */
-	while ((r != 0) && rc < maxread) {
-		r = tls_read(tls, buffer + rc, maxread - rc);
-		if (r == -1) {
-			if (errno != EINTR)
-				err(1, "read failed");
-		} else
-			rc += r;
-	}
-	/*
-	 * we must make absolutely sure buffer has a terminating 0 byte
-	 * if we are to use it as a C string
-	 */
-	buffer[rc] = '\0';
+	//PISANJE I CITANJE OVDJE
 
-	printf("Server sent:  %s\n",buffer);
 	tls_close(tls);
     tls_free(tls);
     tls_config_free(config);
