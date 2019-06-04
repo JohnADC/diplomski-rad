@@ -1,7 +1,12 @@
-#include <arpa/inet.h>
+//revoked-demo.pca.dfn.de
+
+ #include <arpa/inet.h>
+
 #include <netinet/in.h>
+
 #include <sys/types.h>
 #include <sys/socket.h>
+
 #include <err.h>
 #include <errno.h>
 #include <limits.h>
@@ -14,7 +19,6 @@
 
 #include <tls.h>
 
-#DEFINE BUFSIZE 1000
 
 static void usage()
 {
@@ -27,63 +31,55 @@ int main(int argc, char *argv[])
 	struct tls *tls = NULL;
     struct tls_config *config = NULL;
 	struct sockaddr_in server_sa;
-	char buffer[BUFSIZE];
+	char buffer[80];
 	size_t maxread;
 	ssize_t r, rc;
-	u_short port = 9999;
-	ssize_t len;
-	//char *hostname = "revoked-demo.pca.dfn.de";
+	u_short port = 80;
+	char *hostname = "revoked-demo.pca.dfn.de";
 	int sd;
 
 	if (argc != 1)
 		usage();
-	
-	printf("Configuring and initializing tls connection\n")
-	
+
 	tls_init();
 
     tls = tls_client();
 
     config = tls_config_new();
 
-  
-    tls_config_set_ca_file(config, "CA/root.pem");
-    
-    tls_config_set_cert_file(config, "CA/client.crt");
-    
-    tls_config_set_ley_file(config, "CA/client.key")
-
-    //tls_config_insecure_noverifycert(config);
+    // Ako imam CA certifikat:
+    //tls_config_set_ca_path(config, "../../../etc/ssl/certs");
+    // a ako nemam:
+    tls_config_insecure_noverifycert(config);
 
     tls_configure(tls, config);
 	 
-	//tls_config_ocsp_require_stapling(config);
+	tls_config_ocsp_require_stapling(config);
 	 
 	memset(&server_sa, 0, sizeof(server_sa));
 	server_sa.sin_family = AF_INET;
 	server_sa.sin_port = htons(port);
-	server_sa.sin_addr.s_addr = inet_addr("localhost");
+	server_sa.sin_addr.s_addr = inet_addr("193.174.13.82");
+	if (server_sa.sin_addr.s_addr == INADDR_NONE) {
+		fprintf(stderr, "Invalid IP address %s\n", argv[1]);
+		usage();
+	}
 
 
 	if ((sd=socket(AF_INET,SOCK_STREAM,0)) == -1)
 		err(1, "socket failed\n");
 
-	printf("Starting TLS connect\n")
-	
-	if(tls_connect(tls, "localhost", "9999") < 0) {
+	/* connect the socket to the server described in "server_sa" */
+	//if (connect(sd, (struct sockaddr *)&server_sa, sizeof(server_sa))== -1){
+		//printf("4.1.1\n");
+		//err(1, "connect failed\n");
+	//}
+
+	if(tls_connect(tls, hostname, "443") < 0) {
         errx(1, "tls_connect error %s\n", tls_error(tls));
     }
 
-	len = tls_read(tls, buffer, BUFSIZE);
-	printf("Primljeno (%zd): %s\n", len, buffer);
 
-    while(1) {
-		fgets(buffer, BUFSIZE, stdin);
-		
-		if ((len = tls_write(tls, buf, BUFSIZE) == -1) break;
-
-        
-    }
 
 	//PISANJE I CITANJE OVDJE
 
