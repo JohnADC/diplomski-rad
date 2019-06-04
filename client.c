@@ -60,7 +60,7 @@ int main(int argc, char *argv[])
 	memset(&server_sa, 0, sizeof(server_sa));
 	server_sa.sin_family = AF_INET;
 	server_sa.sin_port = htons(port);
-	server_sa.sin_addr.s_addr = inet_addr("localhost");
+	server_sa.sin_addr.s_addr = inet_addr("127.0.0.1");
 
 
 	if ((sd=socket(AF_INET,SOCK_STREAM,0)) == -1)
@@ -68,22 +68,32 @@ int main(int argc, char *argv[])
 
 	printf("Starting TLS connect\n");
 	
-	if(tls_connect(tls, "localhost", "9999") < 0) {
+	if (connect(sd, (struct sockaddr *)&server_sa, sizeof(server_sa)) < 0) {
+        err(1, "Connect");
+    }
+	
+	if(tls_connect_socket(tls, sd,"localhost") < 0) {
         errx(1, "tls_connect error %s\n", tls_error(tls));
     }
+    
 
 	len = tls_read(tls, buffer, BUFSIZE);
+	
+	if(len<0) errx(1, "tls_read: %s\n", tls_error(tls));
+	
+	buffer[len]='\0';
 	printf("Primljeno (%zd): %s\n", len, buffer);
-
+	
     while(1) {
+		memset(buffer, 0, BUFSIZE);
 		fgets(buffer, BUFSIZE, stdin);
-		
+		printf("poslano %s", buffer);
 		if ((len = tls_write(tls, buffer, BUFSIZE) == -1)) break;
 
         
     }
 
-	//PISANJE I CITANJE OVDJE
+	
 
 	tls_close(tls);
     tls_free(tls);

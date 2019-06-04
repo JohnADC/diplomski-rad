@@ -47,11 +47,11 @@ int main(int argc, char *argv[])
 	
 	config = tls_config_new();
 	
-	tls_config_verify_client_optional(config);
+	//tls_config_verify_client_optional(config);
 	
 	tls_config_set_ca_file(config, "CA/root.pem");
 	
-	if(!revoked){
+	if(1){
 		tls_config_set_cert_file(config, "CA/server.crt");
 		
 		tls_config_set_key_file(config, "CA/server.key");
@@ -76,30 +76,38 @@ int main(int argc, char *argv[])
 	memset(&server_sa, 0, sizeof(server_sa));
 	server_sa.sin_family = AF_INET;
 	server_sa.sin_port = htons(port);
-	server_sa.sin_addr.s_addr = inet_addr(INADDR_ANY);
+	server_sa.sin_addr.s_addr = htonl(INADDR_ANY);
 
 
 
 	if ((sd=socket(AF_INET,SOCK_STREAM,0)) == -1)
 		err(1, "socket failed\n");
+		
+	bind(sd, (struct sockaddr *) &server_sa, sizeof(server_sa)); 
 
 	listen(sd, 10);
 
 	socklen_t clientlen = sizeof(client);
-
+	
     clientsd = accept(sd, (struct sockaddr *) &client, &clientlen);
+	
 
-    if(tls_accept_socket(tls, &ctls, sd) < 0) {
+    if(tls_accept_socket(tls, &ctls, clientsd) < 0) {
         errx(1, "tls_accept_socket error\n");
     }
 
     len = tls_write(ctls, msg, strlen(msg));
 
+	printf("sent %s, size %d\n", msg, (int)len);
 
 
     while(1) {
-
-		if ((len = tls_read(ctls, buffer, BUFSIZE) == -1)) break;
+		printf("Cekam da se klijent javi");
+		
+		if ((len = tls_read(ctls, buffer, BUFSIZE)) == -1) {
+			errx(1, "tls_read: %s\n", tls_error(ctls));
+		}
+		
 		buffer[len] = '\0';
 		if (len == 0) { 
 			break;
