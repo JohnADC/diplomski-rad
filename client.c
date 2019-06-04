@@ -14,7 +14,7 @@
 
 #include <tls.h>
 
-#DEFINE BUFSIZE 1000
+#define BUFSIZE 1000
 
 static void usage()
 {
@@ -28,8 +28,6 @@ int main(int argc, char *argv[])
     struct tls_config *config = NULL;
 	struct sockaddr_in server_sa;
 	char buffer[BUFSIZE];
-	size_t maxread;
-	ssize_t r, rc;
 	u_short port = 9999;
 	ssize_t len;
 	//char *hostname = "revoked-demo.pca.dfn.de";
@@ -38,7 +36,7 @@ int main(int argc, char *argv[])
 	if (argc != 1)
 		usage();
 	
-	printf("Configuring and initializing tls connection\n")
+	printf("Configuring and initializing tls connection\n");
 	
 	tls_init();
 
@@ -51,7 +49,7 @@ int main(int argc, char *argv[])
     
     tls_config_set_cert_file(config, "CA/client.crt");
     
-    tls_config_set_ley_file(config, "CA/client.key")
+    tls_config_set_key_file(config, "CA/client.key");
 
     //tls_config_insecure_noverifycert(config);
 
@@ -68,7 +66,7 @@ int main(int argc, char *argv[])
 	if ((sd=socket(AF_INET,SOCK_STREAM,0)) == -1)
 		err(1, "socket failed\n");
 
-	printf("Starting TLS connect\n")
+	printf("Starting TLS connect\n");
 	
 	if(tls_connect(tls, "localhost", "9999") < 0) {
         errx(1, "tls_connect error %s\n", tls_error(tls));
@@ -80,7 +78,7 @@ int main(int argc, char *argv[])
     while(1) {
 		fgets(buffer, BUFSIZE, stdin);
 		
-		if ((len = tls_write(tls, buf, BUFSIZE) == -1) break;
+		if ((len = tls_write(tls, buffer, BUFSIZE) == -1)) break;
 
         
     }

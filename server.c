@@ -12,12 +12,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <poll.h>
+
 
 
 #include <tls.h>
 
-#DEFINE BUFSIZE 1024
+#define BUFSIZE 1024
 
 static void usage()
 {
@@ -31,11 +31,10 @@ int main(int argc, char *argv[])
 	struct tls *tls = NULL;
 	struct tls *ctls = NULL;
     struct tls_config *config = NULL;
-	struct sockaddr_in server_sa;
+	struct sockaddr_in server_sa, client;
 	char buffer[BUFSIZE];
-	pid_t pid;
 	u_short port = 9999;
-	int sd;
+	int sd, clientsd;
 	int revoked = 0, ocsp = 0;
 	char *msg = "HELLO TLS CLIENT\n";
 	ssize_t len;
@@ -44,35 +43,35 @@ int main(int argc, char *argv[])
 	if (argc != 1)
 		usage();
 	
-	printf("Configuring and initializing tls connection\n")	
+	printf("Configuring and initializing tls connection\n");	
 	
-	tls_config = tls_config_new();
+	config = tls_config_new();
 	
-	tls_config_verify_client_optional(tls_config);
+	tls_config_verify_client_optional(config);
 	
-	tls_config_set_ca_file(tls_config, "CA/root.pem");
+	tls_config_set_ca_file(config, "CA/root.pem");
 	
 	if(!revoked){
-		tls_config_set_cert_file(tls_config, "CA/server.crt");
+		tls_config_set_cert_file(config, "CA/server.crt");
 		
-		tls_config_set_key_file(tls_config, "CA/server.key");
+		tls_config_set_key_file(config, "CA/server.key");
 		
 		if(ocsp){
-			tls_config_set_ocsp_staple_file(tls_config, "CA/server.crt-ocsp.der");
+			tls_config_set_ocsp_staple_file(config, "CA/server.crt-ocsp.der");
 		}
 	} else {
-		tls_config_set_cert_file(tls_config, "CA/revoked.crt");
+		tls_config_set_cert_file(config, "CA/revoked.crt");
 		
-		tls_config_set_key_file(tls_config, "CA/revoked.key");
+		tls_config_set_key_file(config, "CA/revoked.key");
 		
 		if(ocsp){
-			tls_config_set_ocsp_staple_file(tls_config, "CA/revoked.crt-ocsp.der");
+			tls_config_set_ocsp_staple_file(config, "CA/revoked.crt-ocsp.der");
 		}
 	}
 
 	tls = tls_server(); 
 	
-	tls_configure(tls, tls_config);
+	tls_configure(tls, config);
 	 
 	memset(&server_sa, 0, sizeof(server_sa));
 	server_sa.sin_family = AF_INET;
@@ -86,7 +85,9 @@ int main(int argc, char *argv[])
 
 	listen(sd, 10);
 
-    sd = accept(sock, (struct sockaddr *) &client, sizeof(client));
+	socklen_t clientlen = sizeof(client);
+
+    clientsd = accept(sd, (struct sockaddr *) &client, &clientlen);
 
     if(tls_accept_socket(tls, &ctls, sd) < 0) {
         errx(1, "tls_accept_socket error\n");
@@ -98,26 +99,17 @@ int main(int argc, char *argv[])
 
     while(1) {
 
-		if ((len = tls_read(ctls, buffer, BUFSIZE) == -1) break;
-		bufs[len] = '\0';
+		if ((len = tls_read(ctls, buffer, BUFSIZE) == -1)) break;
+		buffer[len] = '\0';
 		if (len == 0) { 
 			break;
 		}
 		printf("Primljeno (%zd): %s\n", len, buffer);
         
     }
-    tls_close(ctls);
-    tls_close(tls);
+
+	tls_close(ctls);
     tls_free(ctls);
-    tls_free(tls);
-    tls_config_free(config);
-
-	
-
-
-
-	//PISANJE I CITANJE OVDJE
-
 	tls_close(tls);
     tls_free(tls);
     tls_config_free(config);

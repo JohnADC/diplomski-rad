@@ -2,7 +2,7 @@ CC=gcc
 CFLAGS=-Wall -Wextra -g -O0 -I/usr/local/include
 LDFLAGS=-L/usr/local/lib -lssl -lcrypto -ltls
 
-all: client
+all: client server
 
 server: server.c
 	${CC} -c ${CFLAGS} $@.c
