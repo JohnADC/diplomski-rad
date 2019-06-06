@@ -35,7 +35,7 @@ int main(int argc, char *argv[])
 	char buffer[BUFSIZE];
 	u_short port = 9999;
 	int sd, clientsd;
-	int revoked = 0, ocsp = 0;
+	int revoked = 1, ocsp = 1;
 	char *msg = "HELLO TLS CLIENT\n";
 	ssize_t len;
 
@@ -47,17 +47,17 @@ int main(int argc, char *argv[])
 	
 	config = tls_config_new();
 	
-	//tls_config_verify_client_optional(config);
+	tls_config_verify_client_optional(config);
 	
 	tls_config_set_ca_file(config, "CA/root.pem");
 	
-	if(1){
+	if(!revoked){
 		tls_config_set_cert_file(config, "CA/server.crt");
 		
 		tls_config_set_key_file(config, "CA/server.key");
 		
 		if(ocsp){
-			tls_config_set_ocsp_staple_file(config, "CA/server.crt-ocsp.der");
+			tls_config_set_ocsp_staple_file(config, "CA/server.crt-ocsp.der.new");
 		}
 	} else {
 		tls_config_set_cert_file(config, "CA/revoked.crt");
@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
 		tls_config_set_key_file(config, "CA/revoked.key");
 		
 		if(ocsp){
-			tls_config_set_ocsp_staple_file(config, "CA/revoked.crt-ocsp.der");
+			tls_config_set_ocsp_staple_file(config, "CA/revoked.crt-ocsp.der.new");
 		}
 	}
 
@@ -102,7 +102,7 @@ int main(int argc, char *argv[])
 
 
     while(1) {
-		printf("Cekam da se klijent javi");
+		printf("Cekam da se klijent javi\n");
 		
 		if ((len = tls_read(ctls, buffer, BUFSIZE)) == -1) {
 			errx(1, "tls_read: %s\n", tls_error(ctls));
