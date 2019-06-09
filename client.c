@@ -19,9 +19,13 @@
 
 void report_tls(struct tls * tls_ctx, char * host);
 
-static void usage()
+void commandInfo()
 {
-	fprintf(stderr, "usage: ./client\n");
+	fprintf(stderr, "usage: ./client [-p port] [-r] [-v] [-o]\n\n"
+					"Use -p to set port number, 9999 is used as default\n"
+					"Use -r to use revoked client certificate\n"
+					"Use -v to verify server certificate\n"
+					"Use -o to require ocsp stappling\n");
 	exit(1);
 }
 
@@ -32,42 +36,73 @@ int main(int argc, char *argv[])
 	struct sockaddr_in server_sa;
 	char buffer[BUFSIZE];
 	u_short port = 9999;
+	int p, ch;
 	ssize_t len;
-	int sd;
-	int revoked = 0;
+	int sock;
+	int revoked = 0, ocsp = 0, verify = 0;
 
-	if (argc != 1)
-		usage();
+    while((ch = getopt(argc, argv, "p:rov")) != -1){
+			switch(ch){
+					case 'p':	p = atoi(optarg);
+								if(p <= 0 || p > 65535) commandInfo();
+								port = (unsigned short)p;
+								break;
+					case 'r':	revoked = 1;
+								break;
+					case 'o':	ocsp = 1;
+								break;			
+					case 'v':	verify = 1;
+								break;
+					case '?':   commandInfo();
+								break;
+					default:	commandInfo();
+			}
+	}
 	
-	printf("Configuring and initializing tls connection\n");
+    if(optind < argc){
+    	commandInfo();
+    }
+
 	
-	tls_init();
+	if(tls_init() == -1)
+		errx(1, "tls_init failed");
+		
+	if((tls = tls_client()) == NULL)
+		err(1, "tls_client failed");
+	
+	if((config = tls_config_new()) == NULL)
+		errx(1, "tls_config_new failed");
 
-    tls = tls_client();
-
-    config = tls_config_new();
-
-  
+	if(!verify){
+		tls_config_insecure_noverifycert(config);	
+    } else {
+		if (tls_config_set_crl_file(config, "CA/intermediate/crl/intermediate.crl.pem") == -1)
+			errx(1, "unable to set crl file");
+	}
+    
     tls_config_set_ca_file(config, "CA/root.pem");
     
-    if(!revoked){
-    tls_config_set_cert_file(config, "CA/client.crt");
-    
-    tls_config_set_key_file(config, "CA/client.key");
-	
+    if(!revoked){			
+		tls_config_set_cert_file(config, "CA/client.crt");
+		
+		tls_config_set_key_file(config, "CA/client.key");
+		
 	}else{
 		tls_config_set_cert_file(config, "CA/revoked.crt");
     
 		tls_config_set_key_file(config, "CA/revoked.key");
 	}
+		
+	if(ocsp){ 
+		tls_config_ocsp_require_stapling(config);
+	 }
 
-    //tls_config_insecure_noverifycert(config);
     if (tls_config_set_crl_file(config, "CA/intermediate/crl/intermediate.crl.pem") == -1)
 		errx(1, "unable to set crl file");
 
-    tls_configure(tls, config);
-	 
-	tls_config_ocsp_require_stapling(config);
+	if(tls_configure(tls, config) == -1)
+		err(1, "tls_configure failed");
+    
 	 
 	memset(&server_sa, 0, sizeof(server_sa));
 	server_sa.sin_family = AF_INET;
@@ -75,35 +110,39 @@ int main(int argc, char *argv[])
 	server_sa.sin_addr.s_addr = inet_addr("127.0.0.1");
 
 
-	if ((sd=socket(AF_INET,SOCK_STREAM,0)) == -1)
+	if ((sock=socket(AF_INET,SOCK_STREAM,0)) == -1)
 		err(1, "socket failed\n");
 
 	printf("Starting TLS connect\n");
 	
-	if (connect(sd, (struct sockaddr *)&server_sa, sizeof(server_sa)) < 0) {
+	if (connect(sock, (struct sockaddr *)&server_sa, sizeof(server_sa)) < 0) {
         err(1, "Connect");
     }
 	
-	if(tls_connect_socket(tls, sd,"localhost") < 0) {
+	if(tls_connect_socket(tls, sock,"localhost") < 0) {
         errx(1, "tls_connect error %s\n", tls_error(tls));
     }
 
-
-	len = tls_read(tls, buffer, BUFSIZE);
+	if ((len = tls_handshake(tls)) == -1) {
+		errx(1, "tls_handshake: %s\n", tls_error(tls));
+	}
 	
 	report_tls(tls, "localhost");
-	
-	if(len<0) errx(1, "tls_read: %s\n", tls_error(tls));
+
+	if ((len = tls_read(tls, buffer, BUFSIZE)) == -1) {
+		errx(1, "tls_read: %s\n", tls_error(tls));
+	}
 	
 	buffer[len]='\0';
-	printf("Primljeno (%zd): %s\n", len, buffer);
+	printf("Server message: %s\n", buffer);
 	
     while(1) {
 		memset(buffer, 0, BUFSIZE);
 		fgets(buffer, BUFSIZE, stdin);
-		printf("poslano %s", buffer);
-		if ((len = tls_write(tls, buffer, BUFSIZE) == -1)) break;
 
+		if ((len = tls_write(tls, buffer, BUFSIZE) == -1)) {
+				errx(1, "tls_write: %s\n", tls_error(tls));
+		}
         
     }
 
@@ -112,13 +151,13 @@ int main(int argc, char *argv[])
 	tls_close(tls);
     tls_free(tls);
     tls_config_free(config);
-	close(sd);
+	close(sock);
 	return(0);
 }
 
 
 
-
+//This function has been created by Bob Beck and taken from https://github.com/bob-beck/
 void report_tls(struct tls * tls_ctx, char * host)
 {
 	time_t t;

@@ -19,9 +19,13 @@
 
 #define BUFSIZE 1024
 
-static void usage()
+void commandInfo()
 {
-	fprintf(stderr, "usage: ./server\n");
+	fprintf(stderr, "usage: ./client [-p port] [-r] [-v] [-o]\n\n"
+					"Use -p to set port number, 9999 is used as default\n"
+					"Use -r to use revoked server certificate\n"
+					"Use -v to verify client certificate\n"
+					"Use -o to provide ocsp stappling response\n");
 	exit(1);
 }
 
@@ -34,20 +38,48 @@ int main(int argc, char *argv[])
 	struct sockaddr_in server_sa, client;
 	char buffer[BUFSIZE];
 	u_short port = 9999;
-	int sd, clientsd;
-	int revoked = 1, ocsp = 1;
-	char *msg = "HELLO TLS CLIENT\n";
+	int p, ch;
+	int sock, clientsock;
+	int revoked = 0, ocsp = 0, verify = 0;
+	char *msg = "You have connected to server!\n";
 	ssize_t len;
 
+    while((ch = getopt(argc, argv, "p:rov")) != -1){
+			switch(ch){
+					case 'p':	p = atoi(optarg);
+								if(p <= 0 || p > 65535) commandInfo();
+								port = (unsigned short)p;
+								break;
+					case 'r':	revoked = 1;
+								break;
+					case 'o':	ocsp = 1;
+								break;			
+					case 'v':	verify = 1;
+								break;
+					case '?':   commandInfo();
+								break;
+					default:	commandInfo();
+			}
+	}
+	
+    if(optind < argc){
+    	commandInfo();
+    }
 
-	if (argc != 1)
-		usage();
+	if(tls_init() == -1)
+		errx(1, "tls_init failed");
+		
+	if((tls = tls_server()) == NULL)
+		err(1, "tls_server failed");
 	
-	printf("Configuring and initializing tls connection\n");	
+	if((config = tls_config_new()) == NULL)
+		errx(1, "tls_config_new failed");
 	
-	config = tls_config_new();
-	
-	tls_config_verify_client_optional(config);
+	if(!verify){
+		tls_config_verify_client_optional(config);
+	} else {
+		tls_config_verify_client(config);
+	}
 	
 	tls_config_set_ca_file(config, "CA/root.pem");
 	
@@ -68,10 +100,9 @@ int main(int argc, char *argv[])
 			tls_config_set_ocsp_staple_file(config, "CA/revoked.crt-ocsp.der.new");
 		}
 	}
-
-	tls = tls_server(); 
 	
-	tls_configure(tls, config);
+	if(tls_configure(tls, config) == -1)
+		err(1, "tls_configure failed");
 	 
 	memset(&server_sa, 0, sizeof(server_sa));
 	server_sa.sin_family = AF_INET;
@@ -80,26 +111,28 @@ int main(int argc, char *argv[])
 
 
 
-	if ((sd=socket(AF_INET,SOCK_STREAM,0)) == -1)
+	if ((sock=socket(AF_INET,SOCK_STREAM,0)) == -1)
 		err(1, "socket failed\n");
 		
-	bind(sd, (struct sockaddr *) &server_sa, sizeof(server_sa)); 
+	if (bind(sock, (struct sockaddr *) &server_sa, sizeof(server_sa)) == -1)
+		err(1, "bind failed\n");
 
-	listen(sd, 10);
+	if(listen(sock, 10) == -1)
+		err(1, "listen failed\n");
 
 	socklen_t clientlen = sizeof(client);
 	
-    clientsd = accept(sd, (struct sockaddr *) &client, &clientlen);
+    if ((clientsock = accept(sock, (struct sockaddr *) &client, &clientlen)) == -1)
+		err(1, "accept failed");
 	
 
-    if(tls_accept_socket(tls, &ctls, clientsd) < 0) {
+    if(tls_accept_socket(tls, &ctls, clientsock) < 0) {
         errx(1, "tls_accept_socket error\n");
     }
 
-    len = tls_write(ctls, msg, strlen(msg));
-
-	printf("sent %s, size %d\n", msg, (int)len);
-
+    if((len = tls_write(ctls, msg, strlen(msg))) == -1) {
+		errx(1, "tls_write: %s\n", tls_error(ctls));	
+	}
 
     while(1) {
 		printf("Cekam da se klijent javi\n");
@@ -112,7 +145,7 @@ int main(int argc, char *argv[])
 		if (len == 0) { 
 			break;
 		}
-		printf("Primljeno (%zd): %s\n", len, buffer);
+		printf("Client message: %s\n", buffer);
         
     }
 
@@ -121,6 +154,6 @@ int main(int argc, char *argv[])
 	tls_close(tls);
     tls_free(tls);
     tls_config_free(config);
-	close(sd);
+	close(sock);
 	return(0);
 }
