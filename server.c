@@ -21,7 +21,7 @@
 
 void commandInfo()
 {
-	fprintf(stderr, "usage: ./client [-p port] [-r] [-v] [-o]\n\n"
+	fprintf(stderr, "usage: ./server [-p port] [-r] [-v] [-o]\n\n"
 					"Use -p to set port number, 9999 is used as default\n"
 					"Use -r to use revoked server certificate\n"
 					"Use -v to verify client certificate\n"
@@ -43,6 +43,7 @@ int main(int argc, char *argv[])
 	int revoked = 0, ocsp = 0, verify = 0;
 	char *msg = "You have connected to server!\n";
 	ssize_t len;
+	int opt = 1;
 
     while((ch = getopt(argc, argv, "p:rov")) != -1){
 			switch(ch){
@@ -68,20 +69,19 @@ int main(int argc, char *argv[])
 
 	if(tls_init() == -1)
 		errx(1, "tls_init failed");
-		
-	if((tls = tls_server()) == NULL)
-		err(1, "tls_server failed");
 	
 	if((config = tls_config_new()) == NULL)
 		errx(1, "tls_config_new failed");
+		
+	if(tls_config_set_ca_file(config, "CA/root.pem"))
+		errx(1, "tls_config_set_ca_file failed");
 	
 	if(!verify){
 		tls_config_verify_client_optional(config);
 	} else {
 		tls_config_verify_client(config);
 	}
-	
-	tls_config_set_ca_file(config, "CA/root.pem");
+
 	
 	if(!revoked){
 		tls_config_set_cert_file(config, "CA/server.crt");
@@ -89,7 +89,7 @@ int main(int argc, char *argv[])
 		tls_config_set_key_file(config, "CA/server.key");
 		
 		if(ocsp){
-			tls_config_set_ocsp_staple_file(config, "CA/server.crt-ocsp.der.new");
+			tls_config_set_ocsp_staple_file(config, "CA/server.crt-ocsp.der");
 		}
 	} else {
 		tls_config_set_cert_file(config, "CA/revoked.crt");
@@ -97,9 +97,12 @@ int main(int argc, char *argv[])
 		tls_config_set_key_file(config, "CA/revoked.key");
 		
 		if(ocsp){
-			tls_config_set_ocsp_staple_file(config, "CA/revoked.crt-ocsp.der.new");
+			tls_config_set_ocsp_staple_file(config, "CA/revoked.crt-ocsp.der");
 		}
 	}
+	
+	if((tls = tls_server()) == NULL)
+		err(1, "tls_server failed");
 	
 	if(tls_configure(tls, config) == -1)
 		err(1, "tls_configure failed");
@@ -113,6 +116,8 @@ int main(int argc, char *argv[])
 
 	if ((sock=socket(AF_INET,SOCK_STREAM,0)) == -1)
 		err(1, "socket failed\n");
+		
+	setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &opt, 4);	
 		
 	if (bind(sock, (struct sockaddr *) &server_sa, sizeof(server_sa)) == -1)
 		err(1, "bind failed\n");

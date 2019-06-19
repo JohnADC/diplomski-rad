@@ -66,21 +66,20 @@ int main(int argc, char *argv[])
 	
 	if(tls_init() == -1)
 		errx(1, "tls_init failed");
-		
-	if((tls = tls_client()) == NULL)
-		err(1, "tls_client failed");
 	
 	if((config = tls_config_new()) == NULL)
 		errx(1, "tls_config_new failed");
 
+	if(tls_config_set_ca_file(config, "CA/root.pem"))
+		errx(1, "tls_config_set_ca_file failed");
+
 	if(!verify){
-		tls_config_insecure_noverifycert(config);	
+		//tls_config_insecure_noverifycert(config);	
     } else {
 		if (tls_config_set_crl_file(config, "CA/intermediate/crl/intermediate.crl.pem") == -1)
 			errx(1, "unable to set crl file");
 	}
-    
-    tls_config_set_ca_file(config, "CA/root.pem");
+   
     
     if(!revoked){			
 		tls_config_set_cert_file(config, "CA/client.crt");
@@ -97,8 +96,11 @@ int main(int argc, char *argv[])
 		tls_config_ocsp_require_stapling(config);
 	 }
 
-    if (tls_config_set_crl_file(config, "CA/intermediate/crl/intermediate.crl.pem") == -1)
-		errx(1, "unable to set crl file");
+    //if (tls_config_set_crl_file(config, "CA/intermediate/crl/intermediate.crl.pem") == -1)
+		//errx(1, "unable to set crl file");
+
+	if((tls = tls_client()) == NULL)
+		err(1, "tls_client failed");
 
 	if(tls_configure(tls, config) == -1)
 		err(1, "tls_configure failed");

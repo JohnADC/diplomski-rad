@@ -21,10 +21,9 @@
 
 void commandInfo()
 {
-	fprintf(stderr, "usage: ./client [-p port] [-r] [-v] [-o]\n\n"
+	fprintf(stderr, "usage: ./server-browser [-p port] [-r] [-v] [-o]\n\n"
 					"Use -p to set port number, 9999 is used as default\n"
 					"Use -r to use revoked server certificate\n"
-					"Use -v to verify client certificate\n"
 					"Use -o to provide ocsp stappling response\n");
 	exit(1);
 }
@@ -40,10 +39,11 @@ int main(int argc, char *argv[])
 	u_short port = 9999;
 	int p, ch;
 	int sock, clientsock;
-	int revoked = 0, ocsp = 0, verify = 0;
+	int revoked = 0, ocsp = 0;
 	ssize_t len;
+	int opt = 1;
 
-    while((ch = getopt(argc, argv, "p:rov")) != -1){
+    while((ch = getopt(argc, argv, "p:ro")) != -1){
 			switch(ch){
 					case 'p':	p = atoi(optarg);
 								if(p <= 0 || p > 65535) commandInfo();
@@ -53,8 +53,6 @@ int main(int argc, char *argv[])
 								break;
 					case 'o':	ocsp = 1;
 								break;			
-					case 'v':	verify = 1;
-								break;
 					case '?':   commandInfo();
 								break;
 					default:	commandInfo();
@@ -74,12 +72,6 @@ int main(int argc, char *argv[])
 	if((config = tls_config_new()) == NULL)
 		errx(1, "tls_config_new failed");
 	
-	if(!verify){
-		tls_config_verify_client_optional(config);
-	} else {
-		tls_config_verify_client(config);
-	}
-	
 	tls_config_set_ca_file(config, "CA/root.pem");
 	
 	if(!revoked){
@@ -88,7 +80,7 @@ int main(int argc, char *argv[])
 		tls_config_set_key_file(config, "CA/server.key");
 		
 		if(ocsp){
-			tls_config_set_ocsp_staple_file(config, "CA/server.crt-ocsp.der.new");
+			tls_config_set_ocsp_staple_file(config, "CA/server.crt-ocsp.der");
 		}
 	} else {
 		tls_config_set_cert_file(config, "CA/revoked.crt");
@@ -96,7 +88,7 @@ int main(int argc, char *argv[])
 		tls_config_set_key_file(config, "CA/revoked.key");
 		
 		if(ocsp){
-			tls_config_set_ocsp_staple_file(config, "CA/revoked.crt-ocsp.der.new");
+			tls_config_set_ocsp_staple_file(config, "CA/revoked.crt-ocsp.der");
 		}
 	}
 	
@@ -112,6 +104,8 @@ int main(int argc, char *argv[])
 
 	if ((sock=socket(AF_INET,SOCK_STREAM,0)) == -1)
 		err(1, "socket failed\n");
+		
+	setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &opt, 4);	
 		
 	if (bind(sock, (struct sockaddr *) &server_sa, sizeof(server_sa)) == -1)
 		err(1, "bind failed\n");
@@ -137,12 +131,12 @@ int main(int argc, char *argv[])
 	sprintf(body, "<HTML> <TITLE>Ovo je do 500 znakova dobivene poruke</TITLE> <BODY BGCOLOR=\"lightblue\">\r\n<p>\r\n%s\r\n<p>\r\n</BODY>\r\n</HTML>\r\n", buffer);
 	int bodysize=strlen(body);
 	
-	char bufs[1024]={0};
-	sprintf(bufs, "HTTP/1.0 200 OK\r\nContent-Length: %d\r\nContent-Type: text/html\r\n\r\n", bodysize);
+	char header[1024]={0};
+	sprintf(header, "HTTP/1.0 200 OK\r\nContent-Length: %d\r\nContent-Type: text/html\r\n\r\n", bodysize);
 	
-	strncat(bufs, body, 500);
+	strncat(header, body, 500);
 		
-	if ((len = tls_write(ctls, bufs, strlen(bufs))) == -1) {
+	if ((len = tls_write(ctls, header, strlen(header))) == -1) {
 		errx(1, "tls_read: %s\n", tls_error(ctls));
 	}
 	
